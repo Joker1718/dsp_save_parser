@@ -7,7 +7,6 @@ from gzip import decompress
 from dsp_save_parser import BlueprintData
 from io import BytesIO
 from base64 import b64decode
-# from hashlib import md5
 from buggy_md5 import MD5
 import argparse
 
@@ -32,16 +31,20 @@ class EIconLayout(IntEnum):
 
 @dataclass
 class Blueprint:
-    layout: EIconLayout  # [1]
-    icon0: int  # [2]
-    icon1: int  # [3]
-    icon2: int  # [4]
-    icon3: int  # [5]
-    icon4: int  # [6]
-    time: datetime.datetime  # [8]
-    game_version: str  # [9]
-    short_desc: str  # [10], should be unescaped
-    desc: str  # [11], should be unescaped
+    version: int  # [0]
+    layout: EIconLayout  # v0[1]
+    icon0: int  # v0[2]
+    icon1: int  # v0[3]
+    icon2: int  # v0[4]
+    icon3: int  # v0[5]
+    icon4: int  # v0[6]
+    time: datetime.datetime  # v0[8]
+    game_version: str  # v0[9]
+    short_desc: str  # v0[10], should be unescaped
+    desc: str  # v0[11] v1[14], should be unescaped
+    author: str  # v1[11], should be unescaped
+    custom_version: str  # v1[12], should be unescaped
+    external_fields: str  # v1[13], should be escaped
     data: BlueprintData
 
 _epoch = datetime.date(1970, 1 , 1)
@@ -66,7 +69,7 @@ def load_blueprint_data(file: str):  # impl: BlueprintData.LoadBlueprintData
     assert len(data) >= 28, f'length corrupt, expected no less than 28 bytes, but got {len(data)}'
     assert data.startswith('BLUEPRINT:'), 'corrupt header'
 
-    data_begin_pos = data.find('"', 28, min(len(data), 8192))
+    data_begin_pos = data.find('"', 28, min(len(data), 32768))
     assert data_begin_pos >= 0, 'corrupt data, expected quote char (") near the beginning of the file'
 
     header_array = data[10:data_begin_pos].split(',')
@@ -89,15 +92,45 @@ def load_blueprint_data(file: str):  # impl: BlueprintData.LoadBlueprintData
     with BytesIO(blobs) as f:
         data = BlueprintData.parse(f)
 
-    return Blueprint(EIconLayout(int(header_array[1])), int(header_array[2]), int(header_array[3]),
-                     int(header_array[4]), int(header_array[5]), int(header_array[6]),
-                     datetime_from_tick(int(header_array[8])), header_array[9], unquote(header_array[10]),
-                     unquote(header_array[11]), data)
-
+    version = int(header_array[0])
+    match version:
+        case 0:
+            return Blueprint(version,
+                             EIconLayout(int(header_array[1])),
+                             int(header_array[2]),
+                             int(header_array[3]),
+                             int(header_array[4]),
+                             int(header_array[5]),
+                             int(header_array[6]),
+                             datetime_from_tick(int(header_array[8])),
+                             header_array[9],
+                             unquote(header_array[10]),
+                             unquote(header_array[11]),
+                             "",
+                             "",
+                             "",
+                             data)
+        case 1:
+            return Blueprint(version,
+                             EIconLayout(int(header_array[1])),
+                             int(header_array[2]),
+                             int(header_array[3]),
+                             int(header_array[4]),
+                             int(header_array[5]),
+                             int(header_array[6]),
+                             datetime_from_tick(int(header_array[8])),
+                             header_array[9],
+                             unquote(header_array[10]),
+                             unquote(header_array[14]),
+                             unquote(header_array[11]),
+                             unquote(header_array[12]),
+                             unquote(header_array[13]),
+                             data)
+    raise NotImplementedError
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('blueprint_path', help=r'Blueprint file path, normally located in ~\Documents\Dyson Sphere Program\Blueprint', nargs='?')
+    parser.add_argument('blueprint_path', help=r'Blueprint file path, normally located in ~\Documents\Dyson Sphere Program\Blueprint')
     args = parser.parse_args()
     blueprint = load_blueprint_data(args.blueprint_path)
     print(blueprint)
