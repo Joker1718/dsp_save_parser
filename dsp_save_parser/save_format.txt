@@ -3,7 +3,7 @@
 // majorGameVersion: 0
 // minorGameVersion: 10
 // releaseGameVersion: 34
-// buildGameVersion: 28392
+// buildGameVersion: 28529
 
 // For file syntax, please refer to generator.py (it should be simple enough)
 
@@ -2565,13 +2565,14 @@ ExtraInfoComponent {
 }
 
 MarkerComponent {
-  int32 version = 1
+  int32 version = 2
   int32 id
   int32 gid
   int32 astroId
   int32 entityId
   int32 pcId
   int32 digitalSignalId
+  int32 dfAttractionFlags // version >= 2
   int32 icon
   int32 lenWord
   string word if (lenWord)
@@ -3613,7 +3614,7 @@ DFSTurretComponent {
 }
 
 DFRelayComponent {
-  uint8 version = 0
+  uint8 version = 1
   uint16 id
   int32 enemyId if (id > 0)
   int32 builderId if (id > 0)
@@ -3638,6 +3639,10 @@ DFRelayComponent {
   int32 searchChance
   Vector3 searchLPos
   int32 searchEntityCursor
+  int32 dstMarkerAstroId // version >= 1
+  int32 dstMarkerId // version >= 1
+  Vector3 dstMarkerPos // version >= 1
+  float32 dstMarkerYaw // version >= 1
 }
 
 DFCarrierData {
