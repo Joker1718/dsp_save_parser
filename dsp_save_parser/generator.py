@@ -687,7 +687,7 @@ def write_py_class(class_def: dict, out_py_file: TextIO, line_no: int):
                 if token in KEYWORDS_IN_IF_CLAUSE:  # skip keywords
                     continue
                 if TOKEN.search(token):
-                    if_clause_token[i] = TOKEN_SUB.sub(r'\1self.\2', token)
+                    if_clause_token[i] = TOKEN_SUB.sub(r'\1self.\2', token, count=1)
             save_stmt.insert(0, 'if %s:' % ' '.join(if_clause_token))
         for stmt in save_stmt:
             out_py_file.write('        %s\n' % stmt)
@@ -726,7 +726,7 @@ def write_py_class(class_def: dict, out_py_file: TextIO, line_no: int):
                 if token in KEYWORDS_IN_IF_CLAUSE:  # skip keywords
                     continue
                 if TOKEN.search(token):
-                    if_clause_token[i] = TOKEN_SUB.sub(r'\1self.\2', token)
+                    if_clause_token[i] = TOKEN_SUB.sub(r'\1self.\2', token, count=1)
             size_stmt.insert(0, 'if %s:' % ' '.join(if_clause_token))
         for stmt in size_stmt:
             out_py_file.write('        %s\n' % stmt)
