@@ -1,114 +1,139 @@
-# DSP Save Parser
+# DSP Save Toolkit
 
-A python based save data parser for Dyson Sphere Program.
+Tools for modifying Dyson Sphere Program save files (.dsv) on game version 0.10.35.29104.
 
-Current version: `0.10.34.28529` (Updated on 18 Apr, 2026)
+## Quick start
 
-## Usage
+```bash
+# Unlock all mecha techs + set infinite upgrades to LV5001 + boost mecha stats
+python3 scripts/unlock_mech_tech.py /path/to/your_save.dsv
 
-### Parse DSV file (deserialization)
+# This creates _<your_save_name>_.dsv in the same folder.
+# Copy that file to your DSP save folder:
+#   Windows: C:\Users\<you>\Documents\Dyson Sphere Program\Save\
+```
 
-Example:
+## Scripts
 
+### `unlock_mech_tech.py` — Main modification tool
+
+Modifies a DSP save file to unlock mecha techs, set infinite upgrades, and boost mecha stats.
+
+```bash
+# Full unlock (default)
+python3 scripts/unlock_mech_tech.py /path/to/save.dsv
+
+# Only unlock finite techs, skip infinite upgrades and mecha stat boost
+python3 scripts/unlock_mech_tech.py /path/to/save.dsv --no-infinite --no-mecha
+
+# Set infinite techs to a safer LV100 instead of LV5001
+python3 scripts/unlock_mech_tech.py /path/to/save.dsv --infinite-level 100
+
+# Custom output path
+python3 scripts/unlock_mech_tech.py /path/to/save.dsv -o /path/to/_modified_.dsv
+```
+
+**What it does:**
+- **Step 1**: Unlocks 52 mecha-related finite techs (Core, Engine, Mining, Shield, Vein Utilization LV1-9, Logistic Drones LV2-9, etc.)
+- **Step 2**: Sets all 13 infinite upgrade techs to LV5001 (or custom level)
+- **Step 3**: Boosts mecha stats directly (HP 5000, mining 5x, warp 60000, shield unlocked)
+- Automatically fixes `fileLength` to match actual file size (critical for DSP to load the save)
+- Auto-names output as `_<name>_.dsv` (DSP convention)
+- Validates output and re-parses to verify structural integrity
+
+### `validate_save.py` — Diagnostic tool
+
+Checks a .dsv file for common issues that cause "invalid save file" errors.
+
+```bash
+python3 scripts/validate_save.py /path/to/save.dsv
+```
+
+Checks:
+- Magic bytes (`VFSAVE`)
+- `fileLength` matches actual file size
+- Game version
+- PNG screenshot present
+- File naming convention (`_name_.dsv`)
+
+### `list_techs.py` — Tech inspector
+
+Lists all techs in a save file with their unlock status and levels.
+
+```bash
+python3 scripts/list_techs.py  # hardcoded to Indot.dsv — edit to use your save
+```
+
+### `list_infinite_techs.py` — Infinite tech inspector
+
+Lists only the infinite upgrade techs (max_level >= 100) in a save.
+
+```bash
+python3 scripts/list_infinite_techs.py  # hardcoded to Indot.dsv — edit to use your save
+```
+
+## Requirements
+
+- Python 3.8+
+- The `dsp_save_parser/` package included in this toolkit (already patched for 0.10.35.29104)
+
+## How it works
+
+The script:
+1. Loads the `dsp_save_parser` package (auto-regenerates the parser from `save_format.txt`)
+2. Parses the input `.dsv` file into a Python object tree
+3. Modifies the `GameHistoryData.tech_state[]` array (sets `unlocked=True`, `cur_level=max_level` for finite techs, `cur_level=5001` for infinite techs)
+4. Modifies `Player.mecha` fields directly (HP, speed, shield, etc.)
+5. Saves to a new `.dsv` file with corrected `fileLength`
+
+The original save file is never modified.
+
+## Troubleshooting
+
+### "Invalid save file" error in DSP
+
+Run `validate_save.py` on your output file:
+```bash
+python3 scripts/validate_save.py _your_save_.dsv
+```
+
+Common issues:
+- `fileLength` mismatch → re-run `unlock_mech_tech.py` (it auto-fixes this)
+- Wrong filename → must be `_<name>_.dsv` (script auto-names correctly by default)
+
+### Save loads but techs don't show as unlocked
+
+DSP may need the `hashUploaded` field to be ≥ `hashNeeded` for some techs. If the unlock doesn't take effect, try also boosting `hashUploaded`:
 ```python
-import dsp_save_parser as s
-
-with open('your_save_data.dsv', 'rb') as f:
-    print(s.GameSave.parse(f))
+# In unlock_mech_tech.py, in unlock_mecha_tech(), add:
+tech.hash_uploaded = tech.hash_needed
 ```
 
-`main.py` provides a basic skeleton structure for parsing a DSP save file: run `python main.py [save_data_path]` and it would print something like:
+### Game crashes on load
 
-```text
-<GameSave [0-78315965] (header=<VFSaveHeader>, file_length=78315965, version=7, is_sandbox_mode=0, is_peace_mode=0, major_game_version=0, minor_game_version=10, release_game_version=34, build_game_version=28529, game_tick=16005064, now_ticks=639147079567079910, size_of_png_file=68989, screen_shot_png_file=<bytes>, account_data=<AccountData>, dyson_sphere_energy_gen_current_tick=93857106, game_data=<GameData>)>
+The LV5001 setting may be too aggressive for some infinite techs. Try a safer level:
+```bash
+python3 scripts/unlock_mech_tech.py /path/to/save.dsv --infinite-level 100
 ```
 
-*If `save_data_path` is not specified, the program will use the last exit save data `~\Documents\Dyson Sphere Program\Save\_lastexit_.dsv` by default.*
+## Files
 
-**A more advanced one -- exporting vein amounts for all explored planets:**
-
-```python
-from enum import IntEnum
-from collections import defaultdict
-
-
-class EVeinType(IntEnum):
-    NONE = 0
-    Iron = 1
-    Copper = 2
-    Silicium = 3
-    Titanium = 4
-    Stone = 5
-    Coal = 6
-    Oil = 7
-    Fireice = 8
-    Diamond = 9
-    Fractal = 10
-    Crysrub = 11
-    Grat = 12
-    Bamboo = 13
-    Mag = 14
-    MAX = 15
-
-
-with open('xxx.dsv', 'rb') as f:
-    data = s.GameSave.parse(f)
-    planet_data_node_list = data.game_data.galaxy.data
-    while planet_data_node_list is not None and planet_data_node_list.id != -1:
-        amount_dict = defaultdict(int)
-        # from 0.10.32.25783: vein data moved to GalaxyData
-        for vein_data in planet_data_node_list.value.vein_groups:
-            amount_dict[vein_data.type] += vein_data.amount
-        amount_dict = {EVeinType(k).name: v for k, v in amount_dict.items()}
-        print(planet_data_node_list.id, amount_dict)
-        planet_data_node_list = planet_data_node_list.next
 ```
-
-### Export to DSV file (serialization)
-
-Write access is now supported. Here is an example:
-
-```python
-import dsp_save_parser as s
-
-with open('your_save_data.dsv', 'rb') as f:
-    data = s.GameSave.parse(f)
-
-# do some modifications, for example:
-data.account_data.user_name = 'my_name'  # change player's name
-data.game_data.main_player.sand_count = 99999999  # modify sands
-# if your changes affect the size of the save data, don't forget to re-calculate the whole file length
-data.file_length = len(data)
-
-# save changes
-with open('your_modded_save_data.dsv', 'wb') as f:
-    data.save(f)
+dsp_save_toolkit/
+├── README.md                          (this file)
+├── dsp_save_parser/                   (the parser package, patched for 0.10.35.29104)
+│   ├── dsp_save_parser/
+│   │   ├── __init__.py
+│   │   ├── common.py
+│   │   ├── generator.py
+│   │   ├── save_format.txt            (the format definition)
+│   │   └── blueprint_format.txt
+│   ├── main.py                        (basic parser demo)
+│   ├── blueprint.py
+│   └── buggy_md5.py                   (DSP's non-standard MD5 implementation)
+└── scripts/
+    ├── unlock_mech_tech.py            (main modification tool)
+    ├── validate_save.py               (diagnostic tool)
+    ├── list_techs.py                  (tech inspector)
+    └── list_infinite_techs.py         (infinite tech inspector)
 ```
-
-Type casting for basic data types (uints, ints, floats, strings and their arrays) is automatically executed during calling `save` method.
-
-If you changed the element counts in an array, don't forget to change its length attribute of the array:
-```python
-data.game_data.game_desc.saved_theme_ids.pop()  # remove element
-data.game_data.game_desc.num_saved_theme_ids -= 1  # also decrease the array length manually
-```
-
-### Parse blueprint text file (deserialization)
-
-`blueprint.py` provides the necessary codes for parsing blueprint files. Run `python blueprint.py your_blueprint_file_path.txt` can print something like:
-
-```text
-Blueprint(layout=<EIconLayout.ONE_ICON: 10>, icon0=2206, icon1=0, icon2=0, icon3=0, icon4=0, time=datetime.datetime(2023, 10, 29, 23, 0, 50, 869514), game_version='0.9.27.15466', short_desc='capacitor100-90mw', desc='', data=<BlueprintData [0-6147] (version=1, cursor_offset_x=14, cursor_offset_y=14, cursor_target_area=0, drag_box_size_x=28, drag_box_size_y=28, primary_area_idx=0, num_areas=1, areas=<list>, num_buildings=100, buildings=<list>, patch=1, has_reform_data=None, reform_data=None)>)
-```
-
-## File structure
-
-### DSV Save format
-
-Refers to [save_format.txt](dsp_save_parser/save_format.txt) for detail. It should be quite straightforward and easy-understanding, maybe?
-
-As for the meaning of each field, ask the developers rather than me.
-
-### Blueprint format
-
-Refers to [blueprint_format.txt](dsp_save_parser/blueprint_format.txt) for detail.

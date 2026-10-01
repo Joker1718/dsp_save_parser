@@ -24,4 +24,4 @@ except ImportError:
     class GameSave(ParserBase, metaclass=_abc.ABCMeta):
         pass
 
-__version__ = '1.0.4'
+__version__ = '1.0.5'
